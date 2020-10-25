@@ -1,17 +1,20 @@
 # Author: Aman Verma
 # Description: This is a Python Desktop Application which reads the Excel and CSV datasets and
-# compute correlation between the data and visualize the data using charts and plots.
+# compute correlation and regression between the data and visualize the data using charts and plots.
 # Importing various GUI and data manipulation libraries
 from tkinter import *
 from tkinter import messagebox
-import tkinter as tk
 from tkinter import filedialog as fd
+import tkinter as tk
 import pandas as pd
 from pandastable import Table
 import matplotlib.pyplot as plot
-
+from scipy.stats import linregress
 
 # Browsing the input file
+from sympy.stats import independent
+
+
 def browse():
     name = str(fd.askopenfilename(filetypes=[('Excel/CSV Files', '*.xlsx; *xls; *.csv')]))
     # If file is selected
@@ -33,13 +36,13 @@ def readFile(loc):
         pt.show()
     # Read CSV File
     elif loc.endswith('.csv'):
-        df = pd.read_csv(loc, header=None)
+        df = pd.read_csv(loc)
         # Put the data in the table
         pt = Table(frame, dataframe=df, showstatusbar=True, height=200)
         pt.show()
 
     btnCor['state'] = tk.NORMAL
-    btnRankCor['state'] = tk.NORMAL
+    btnLinReg['state'] = tk.NORMAL
     # Draw the table in case multiple files are being opened using the application
     pt.redraw()
 
@@ -53,27 +56,85 @@ def karlCor():
         res = data.corr(method="pearson")
         print(res.to_string())
         # messagebox.showinfo("Karl Pearson Correlation (Coefficients)", res.to_string())
-        showRes(res.to_string())
+        showCorRes(res.to_string())
 
 
-# For computation of Rank Correlation with the selected data from the table
-def rankCor():
+# Regression
+def linearRegression():
     data = pt.getSelectedDataFrame()
-    if data.empty:
-        messagebox.showerror("Rank Correlation (Coefficients)", "Data not Selected.")
-    else:
-        res = data.corr(method="spearman")
-        print(res.to_string())
-        # messagebox.showinfo("Rank Correlation (Coefficients)", res.to_string())
-        showRes(res.to_string())
+
+    # Getting the first two numeric data
+    numericCols = []
+    cols = data.columns.tolist()
+    if (len(cols) < 2):
+        messagebox.showerror("Insufficient Data", "Please Select Minimum Two Columns.")
+        return
+
+    for col in cols:
+        cells = data[col].tolist()
+        dt = type(cells[0])
+        if (dt == int or dt == float):
+            numericCols.append(col)
+
+    # Collecting X and Y for Regression
+    x = data[numericCols[0]].tolist()
+    y = data[numericCols[1]].tolist()
+
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+
+    global equation
+    equation = "y = " + str(slope) + "*x + " + str(intercept)
+    showRegRes(equation, r_value, std_err)
 
 
-# For displaying the correlation results in a new window withd double scroll view
-def showRes(resStr):
+def showRegRes(equation, coefficient, error):
     rootRes = Tk()
-    rootRes.title("Result")
-    rootRes.minsize(300, 100)
-    rootRes.maxsize(500, 300)
+    rootRes.title("Regression Result")
+    rootRes.minsize(400, 400)
+    rootRes.maxsize(800, 400)
+
+    eq = "Regression Equation: " + equation
+    coef = "Coefficent: " + str(coefficient)
+    err = "Standard Error: " + str(error)
+    result = eq.replace("*", "") + "\n" + coef + "\n" + err
+
+    res = Label(rootRes, text=result, font=('Calibri', 14))
+    res.pack(pady=15)
+
+    label = Label(rootRes, text='Prediction', font=('Calibri italic', 14))
+    label.pack(pady=10)
+
+    label1 = Label(rootRes, text='Independent Variable (x)', font=('Calibri', 12))
+    label1.pack(pady=5)
+
+    global independent
+    independent = Entry(rootRes)
+    independent.pack(pady=5)
+
+    btn = Button(rootRes, text='Predict', command=predictReg)
+    btn.pack(pady=5)
+
+    global dependent
+    dependent = Label(rootRes, text='', font=('Calibri', 14))
+    dependent.pack(pady=5)
+
+    rootRes.mainloop()
+
+
+def predictReg():
+    exp = equation.split("= ")[1]
+    exp = exp.replace("x", independent.get())
+
+    res = eval(exp)
+    dependent['text'] = "y = " + str(res)
+
+
+# For displaying the correlation results in a new window with double scroll view
+def showCorRes(resStr):
+    rootRes = Tk()
+    rootRes.title("Correlation Result")
+    rootRes.minsize(500, 400)
+    rootRes.maxsize(700, 500)
 
     # Create horizontal and vertical scroll bars
     SVBar = tk.Scrollbar(rootRes)
@@ -114,6 +175,10 @@ def visualizeData():
 
     # Getting the columns which contain numeric values
     cols = data.columns.tolist()
+    if (len(cols) < 2):
+        messagebox.showerror("Insufficient Data", "Please Select Minimum Two Columns.")
+        return
+
     for col in cols:
         cells = data[col].tolist()
         dt = type(cells[0])
@@ -168,7 +233,7 @@ def visualizeData():
 
 # Setting up GUI widgets
 root = Tk()
-root.title('Correlation using Python')
+root.title('Correlation & Regression Using Python')
 root.minsize(600, 650)
 root.maxsize(600, 650)
 
@@ -187,11 +252,11 @@ frameBtn.pack(fill="x", side="bottom", pady=10)
 instr = Label(frameBtn, text="Select Data from table and perform following operations")
 instr.pack(pady=5)
 
-btnCor = Button(frameBtn, text="Karl-Pearson Correlation", command=karlCor, state=tk.DISABLED)
+btnCor = Button(frameBtn, text="Correlation", command=karlCor, state=tk.DISABLED)
 btnCor.pack(pady=5)
 
-btnRankCor = Button(frameBtn, text="Rank Correlation", command=rankCor, state=tk.DISABLED)
-btnRankCor.pack(pady=5)
+btnLinReg = Button(frameBtn, text="Regression", command=linearRegression, state=tk.DISABLED)
+btnLinReg.pack(pady=5)
 
 top = Frame(frameBtn)
 bottom = Frame(frameBtn)
